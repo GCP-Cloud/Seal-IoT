@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.cloud.solutions.rtdp;
+package com.google.cloud.solutions.Seal;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
