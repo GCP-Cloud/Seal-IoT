@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.cloud.solutions.rtdp;
+package com.google.cloud.solutions.Seal;
 
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
