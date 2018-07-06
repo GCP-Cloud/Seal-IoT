@@ -40,7 +40,7 @@ import org.joda.time.DateTime;
  * It randomly chooses MQTT sessions and sends a specified number of messages repeatedly.
  */
 public class Simulator implements MqttCallback {
-  public static final int NUM_DEVICES = 30;
+  public static final int NUM_DEVICES = 5;
 
   private static PrivateKey loadKeyFile(String filename, String algorithm) throws Exception {
     byte[] keyBytes = Files.readAllBytes(Paths.get(filename));
@@ -77,6 +77,7 @@ public class Simulator implements MqttCallback {
   private String sz = "20";
   private String lat;
   private String lng;
+  public String location;
 
   /** Class for simulator. */
   public Simulator(int id, MqttOptions options) {
@@ -118,47 +119,51 @@ public class Simulator implements MqttCallback {
         temp = rand.nextInt(35);
       } while (temp < 20);
     }
-    long dt = System.currentTimeMillis();
+    /** Publish other sensor data using Temperature data.*/
+    String Tempprs = "" + (temp * 1.2);
+   	int decimalPosition = Tempprs.indexOf('.');
+   	Double prs = Double.parseDouble(Tempprs.substring(0, decimalPosition + 2)); 
+   	double humidity = 100 - prs;
+   	double dwp = temp + humidity;
+   	String pc = "" + (temp * 1.4);
+   	int decimalPos = pc.indexOf('.');
+   	Double PowerConsumption = Double.parseDouble(pc.substring(0, decimalPos + 2));
+    long dt = System.currentTimeMillis();    
     String payload =
         String.format(
-            "%s,%s,%s,%s,%s,%s", deviceId, Long.toString(dt), Integer.toString(temp), lat, lng, sz);
+            "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s", deviceId, Long.toString(dt), Integer.toString(temp), prs, Double.toString(humidity), Double.toString(dwp), lat, lng, PowerConsumption, sz);
 
     MqttMessage message = new MqttMessage(payload.getBytes());
     message.setQos(1);
-
     client.publish(topic, message);
-  }
-
+}
   public void disconnect() throws MqttException {
     client.disconnect();
   }
-
   public void connectionLost(Throwable arg0) {}
-
   public void deliveryComplete(IMqttDeliveryToken arg0) {}
-
   public void messageArrived(String arg0, MqttMessage arg1) throws Exception {}
-
+  
   /** Main entry point to application.*/
   public static void main(String[] args) throws Exception {
     MqttOptions options = MqttOptions.fromFlags(args);
     if (options == null) {
       System.exit(1);
     }
-
     Random rand = new Random();
     Simulator[] sims = new Simulator[NUM_DEVICES];
     for (int i = 0; i < NUM_DEVICES; i++) {
       sims[i] = new Simulator(i + 1, options);
     }
-
     for (int i = 1; i <= options.numMessages; ++i) {
       // Choose a device randomly to publish a message.
-      int id = rand.nextInt(NUM_DEVICES);
-      sims[id].publish();
-      Thread.sleep(200);
-    }
-
+      for(int j = 0; j < NUM_DEVICES; j++){
+      	// int id = rand.nextInt(NUM_DEVICES);
+      	sims[j].publish();
+		}
+      /** Every one minute, all 5 devices creates telementry data */
+      Thread.sleep(60000);
+    } 
     for (int i = 0; i < NUM_DEVICES; i++) {
       sims[i].disconnect();
     }
