@@ -62,12 +62,12 @@ public class Converter {
   private static JacksonFactory JSON_FACTORY = new JacksonFactory();
 
   /**
-   * RtdpOptions extends DataflowPipelineOptions to retrieve a Pub/Sub topic as a command
+   * SealOptions extends DataflowPipelineOptions to retrieve a Pub/Sub topic as a command
    * line argument.
    * @author teppeiy
    *
    */
-  public interface RtdpOptions extends DataflowPipelineOptions {
+  public interface SealOptions extends DataflowPipelineOptions {
     String getTopic();
 
     void setTopic(String topic);
@@ -76,11 +76,11 @@ public class Converter {
   public Converter() {}
 
   /** Starts the DataFlow convertor. */
-  public void startConverter(RtdpOptions options) throws IOException {
+  public void startConverter(SealOptions options) throws IOException {
     final String projectId = options.getProject();
     final String topic = options.getTopic();
-    final String datasetId = "iotds";
-    final String tableName = "temp_sensor";
+    final String datasetId = "SealStg";
+    final String tableName = "SensorReadings";
 
     String id = Long.toString(System.currentTimeMillis());
     options.setJobName("converter-" + id);
@@ -106,20 +106,24 @@ public class Converter {
 
     List<TableFieldSchema> fields = new ArrayList<TableFieldSchema>();
     fields.add(new TableFieldSchema().setName("deviceid").setType("STRING"));
-    fields.add(new TableFieldSchema().setName("dt").setType("DATETIME"));
-    fields.add(new TableFieldSchema().setName("temp").setType("FLOAT"));
-    fields.add(new TableFieldSchema().setName("lat").setType("STRING"));
-    fields.add(new TableFieldSchema().setName("lng").setType("STRING"));
+    fields.add(new TableFieldSchema().setName("DateTime").setType("DATETIME"));
+    fields.add(new TableFieldSchema().setName("Temperature").setType("FLOAT"));
+    fields.add(new TableFieldSchema().setName("Pressure").setType("FLOAT"));
+    fields.add(new TableFieldSchema().setName("Humidity").setType("FLOAT"));
+    fields.add(new TableFieldSchema().setName("DewPoint").setType("FLOAT"));
+    fields.add(new TableFieldSchema().setName("Latitude").setType("STRING"));
+    fields.add(new TableFieldSchema().setName("Longitude").setType("STRING"));
+    fields.add(new TableFieldSchema().setName("PowerConsumption").setType("FLOAT"));
+
     TableSchema schema = new TableSchema().setFields(fields);
 
     Pipeline p = Pipeline.create(options);
-    p.apply(
+    p.apply("Read From PubSub IO",
             PubsubIO.readStrings()
                 .fromTopic("projects/" + options.getProject() + "/topics/" + topic))
-        .apply(Window.<String>into(FixedWindows.of(Duration.standardSeconds(10))))
-        .apply(ParDo.of(new RowGenerator()))
-        .apply(
-            BigQueryIO.writeTableRows()
+        .apply("Applying Windowing", Window.<String>into(FixedWindows.of(Duration.standardSeconds(10))))
+        .apply("Apply ParDo", ParDo.of(new RowGenerator()))
+        .apply("Write To BQ OP", BigQueryIO.writeTableRows()
                 .to(ref)
                 .withSchema(schema)
                 .withFailedInsertRetryPolicy(InsertRetryPolicy.alwaysRetry())
@@ -145,10 +149,14 @@ public class Converter {
       TableRow row =
           new TableRow()
               .set("deviceid", attrs[0])
-              .set("dt", sdf.format(new Date(Long.parseLong(attrs[1]))))
-              .set("temp", new Double(attrs[2]))
-              .set("lat", attrs[3])
-              .set("lng", attrs[4]);
+              .set("DateTime", sdf.format(new Date(Long.parseLong(attrs[1]))))
+              .set("Temperature", new Double(attrs[2]))
+              .set("Pressure", new Double(attrs[3]))
+              .set("Humidity", new Double(attrs[4]))
+              .set("DewPoint", new Double(attrs[5]))
+              .set("Latitude", attrs[6])
+              .set("Longitude", attrs[7])
+              .set("PowerConsumption", new Double(attrs[8]));
       c.output(row);
     }
   }
@@ -156,9 +164,8 @@ public class Converter {
   /** Main entry point. */
   public static void main(String[] args)
       throws IOException, InterruptedException, GeneralSecurityException {
-    PipelineOptionsFactory.register(RtdpOptions.class);
-    RtdpOptions converterOpts = PipelineOptionsFactory.fromArgs(args).as(RtdpOptions.class);
-
+    PipelineOptionsFactory.register(SealOptions.class);
+    SealOptions converterOpts = PipelineOptionsFactory.fromArgs(args).as(SealOptions.class);
     Converter bench = new Converter();
     System.out.println("Starting Converter");
     bench.startConverter(converterOpts);
